@@ -27,7 +27,7 @@ public:
 
 
 	variance(int w, int s);
-	void kenshou(int dsc,int s, int win);
+	void kenshou(int dsc, int s, int win, Mat &dst);
 	void detect(const Mat &img, list<Rect> &rects);
 	void draw(Mat &dst);
 
