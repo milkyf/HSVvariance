@@ -172,98 +172,145 @@ void variance::detect(const Mat &src_img, list<Rect> &rects){
 }
 
 void variance::draw(Mat &dst){
-	cout << m_cmp_rcs.size() << endl;
+	cout << "m_cmp_rcs: "<< m_cmp_rcs.size() << endl;
 	for (list<cv::Rect>::iterator it = m_cmp_rcs.begin();
 		!(it == m_cmp_rcs.end()); ++it) {
 		rectangle(dst, *it, cv::Scalar(0, 255, 0));
 	}
 }
-void variance::kenshou(int64 time){
+void variance::kenshou(int dsc,int s,int win){//検証
+	FILE *kekka;
+	kekka = fopen("Result.csv", "w");
+	
 	Rect awaseta;
 	Rect zissai[500];
 	Rect zissai2[500];
-	Rect atai[500];
+	char str[500];
+	//string dsc;
+	sprintf(str, "shashin/DSC00%03d.jpg", dsc);
+
+	Mat img = imread(str);
+
 	char fname[500];
-	ifstream ifs(fname);
-	for (int dsc = 2; dsc <= 968; dsc++){
+	
+	
 		sprintf(fname, "rtat/DSC00%03d.txt", dsc);
+		ifstream ifs(fname);
 		string strr;
 
-		int rtat = 0;
-		int a = 0, b = 0;
+		
+		int a = 0, b = 0, rtat = 0;
 
-		if (ifs.fail()){
+		if (ifs.fail()){ 
 			cerr << "File does not exist." << endl;
 			exit(0);
 		}
 		int p = 0;
-
 		while (getline(ifs, strr)){
-
+			
+			//テキストデータから船舶の座標を読み取り、船舶の数をカウント。pは行数
 			sscanf(strr.data(), "%d %d", &a, &b);
 			switch ((p + 1) % 2){
-			case 1:
+			case 1://1行目 左上の(x,y)座標
 				atai[rtat].x = a;
 				atai[rtat].y = b;
 				p++;
+				
 				continue;
 
-			default:
+			default://2行目 右下の(x,y)座標
 				atai[rtat].width = a - atai[rtat].x;
 				atai[rtat].height = b - atai[rtat].y;
 				rtat++, p++;
 				continue;
 			}
+			
 		}
+		double rectSum = 0;
+		for (int n = 0; n < rtat;n++){
+			rectSum += atai[n].width * atai[n].height;
+			
+			
+		}
+		//printf("rectSum: %d\n", rectSum);
+		int rectArea = 0;
+		for (list<cv::Rect>::iterator it = m_cmp_rcs.begin();
+			!(it == m_cmp_rcs.end()); ++it) {
+			Rect rc = *it;
+			cout << rc.area() << " " << rc.size() << endl;////rc.area()に面積
+			rectArea += rc.area();
+			
+		}
+		cout << rectArea << endl;
+		double areaPercentage = rectSum / rectArea;
+		printf(" areaPercentage: %f\n", areaPercentage);
+
+		fprintf(kekka, "閾値,ウィンドウサイズ,正しい船舶の面積,プログラムが検出した船舶数,正しい船舶数,プログラムが検出した窓の面積,抽出面積の割合,検出率,計測時間\n");
+		fprintf(kekka, "%d,%d,%d,%d,%d,%d,%f", s, win, rectSum, m_cmp_rcs.size(), "プログラムが検出した窓の面積", rectArea, m_cmp_rcs.size()/ rtat);
+		fprintf(kekka, "\n");
+
 		ifs.close();
+
 		zissai[0].x = 0;
 		zissai[0].y = 0;
 		zissai[0].width = 2;
 		zissai[0].height = 2;
 
-		int tat = 0;
+		
 		int shogo = 0;
-		int tatr = 0;
-
 		for (int m = 0; m <= rtat; m++){
-			for (int n = 0; n <= tat; n++){
+			for (int n = 0; n <= (int)m_cmp_rcs.size(); n++){
 				awaseta = atai[m] & zissai[n];
 				if (awaseta.area() > atai[m].area() / 2 && (zissai[n].area() - awaseta.area()) < awaseta.area()*0.5){
-					zissai2[tatr] = zissai[n];
+					zissai2[rtat] = zissai[n];
+
 					shogo++;
 					break;
 				}
 			}
 		}
-	}
 }
+
 int main(int argc, char ** argv){
-	TickMeter time;
+	FILE *TIME;
+	TIME = fopen("time.csv", "w");
+	double areaPercentage[500];
+	Rect atai[500];
+	int rtat = 0;
 	
-	for (int dsc = 2; dsc <= 968; dsc++)
+	TickMeter time;
+	fprintf(TIME, "検証時間\n" );
+	for (int dsc = 2; dsc <= 2; dsc++)//968
 	{
 		
-		for (int w = 10; w < 50; w += 3){
-			for (int s = 10; s < 50; s += 3){
+		for (int win = 20; win < 40; win += 3){//ウィンドウサイズ
+			for (int s = 12; s < 22; s += 3){//閾値
 				
 				char result[500];
-				sprintf_s(result, "sikiiti/s%d_w%d_DSC00%03d.JPG",s,w, dsc);
+				sprintf_s(result, "sikiiti/s%d_w%d_DSC00%03d.JPG",s,win, dsc);
 				//imwrite(result, img);
 				char str[500];
 				sprintf_s(str, "shashin/DSC00%03d.jpg", dsc);
 				Mat img = imread(str);
 				if (img.empty()) continue;
 				resize(img, img, Size(640, 480));
-				variance var(w, s);
+				variance var(win, s);
+
 				list<Rect> rects;
-				time.start();
+				
+				areaPercentage[dsc];// = kenshou(dsc);
+
+				time.start();//計測開始
 				var.detect(img, rects);
 				var.draw(img);
-				time.stop();
+				time.stop();//計測終了
+				var.kenshou(dsc,s,win);
+				double jikan = time.getTimeMilli()/1000;//sec
+				
+				fprintf(TIME,"%f\n",jikan);
 				time.reset();
 				imwrite(result, img);
 				
-
 			}
 		}
 	}
