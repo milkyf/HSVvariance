@@ -178,9 +178,9 @@ void variance::draw(Mat &dst){
 		rectangle(dst, *it, cv::Scalar(0, 255, 0));
 	}
 }
-void variance::kenshou(int dsc,int s,int win){//検証
+void variance::kenshou(int dsc, int s, int win, Mat &dst){//検証
 	FILE *kekka;
-	kekka = fopen("Result.csv", "w");
+	kekka = fopen("Result.csv", "a");
 	
 	Rect awaseta;
 	Rect zissai[500];
@@ -226,65 +226,74 @@ void variance::kenshou(int dsc,int s,int win){//検証
 			}
 			
 		}
+
+		ifs.close();
 		double rectSum = 0;
 		for (int n = 0; n < rtat;n++){
-			rectSum += atai[n].width * atai[n].height;
+			rectSum += atai[n].width * atai[n].height;//正しい船舶の面積
 			
 			
 		}
 		//printf("rectSum: %d\n", rectSum);
 		int rectArea = 0;
+		Rect rc;
 		for (list<cv::Rect>::iterator it = m_cmp_rcs.begin();
 			!(it == m_cmp_rcs.end()); ++it) {
-			Rect rc = *it;
+			rc = *it;
 			cout << rc.area() << " " << rc.size() << endl;////rc.area()に面積
 			rectArea += rc.area();
 			
 		}
-		cout << rectArea << endl;
+		//cout << rectSum << endl;
 		double areaPercentage = rectSum / rectArea;
-		printf(" areaPercentage: %f\n", areaPercentage);
+		//printf(" areaPercentage: %f\n", areaPercentage);
 
-		fprintf(kekka, "閾値,ウィンドウサイズ,正しい船舶の面積,プログラムが検出した船舶数,正しい船舶数,プログラムが検出した窓の面積,抽出面積の割合,検出率,計測時間\n");
-		fprintf(kekka, "%d,%d,%d,%d,%d,%d,%f", s, win, rectSum, m_cmp_rcs.size(), "プログラムが検出した窓の面積", rectArea, m_cmp_rcs.size()/ rtat);
-		fprintf(kekka, "\n");
-
-		ifs.close();
-
-		zissai[0].x = 0;
-		zissai[0].y = 0;
-		zissai[0].width = 2;
-		zissai[0].height = 2;
-
+		//cout << m_cmp_rcs.size() << endl;
 		
+			
 		int shogo = 0;
-		for (int m = 0; m <= rtat; m++){
-			for (int n = 0; n <= (int)m_cmp_rcs.size(); n++){
-				awaseta = atai[m] & zissai[n];
-				if (awaseta.area() > atai[m].area() / 2 && (zissai[n].area() - awaseta.area()) < awaseta.area()*0.5){
-					zissai2[rtat] = zissai[n];
 
+		for (int m = 0; m < rtat; m++){
+
+			rectangle(dst, atai[m], cv::Scalar(0, 0, 255));
+
+			for (list<cv::Rect>::iterator it = m_cmp_rcs.begin();
+				!(it == m_cmp_rcs.end()); ++it) {
+				
+				rc = *it;
+				cout << "実際の値" << atai[m].x << "," << atai[m].y << "," <<atai[m].width << "," <<atai[m].height << endl;
+				cout << "計算" << rc.x << "," << rc.y << "," << rc.width << "," << rc.height << endl;
+				awaseta = atai[m] & rc;
+				cout << awaseta.x << "," << awaseta.y << "," << awaseta.width << "," << awaseta.height << endl;
+				if (awaseta.area() > atai[m].area() / 2 && (rc.area() - awaseta.area()) < awaseta.area()*0.5){
 					shogo++;
 					break;
 				}
 			}
 		}
+		cout << shogo << endl;
+		double kenshutsu = (double)shogo / (double)rtat;
+		double gokenshutsu = ((double)m_cmp_rcs.size() - (double)shogo) / (double)m_cmp_rcs.size();
+		fprintf(kekka, "%d,%d,%d,%f,%d,%d,%d,%d,%f,%f", dsc, s, win, rectSum, m_cmp_rcs.size(), rtat, rectArea, areaPercentage, kenshutsu, gokenshutsu);
+		fprintf(kekka, "\n");
+
+		fclose(kekka);
 }
 
 int main(int argc, char ** argv){
-	FILE *TIME;
+	FILE *TIME,*kekka;
+	kekka = fopen("Result.csv", "w");
 	TIME = fopen("time.csv", "w");
-	double areaPercentage[500];
-	Rect atai[500];
-	int rtat = 0;
-	
+	double areaPercentage[500];	
 	TickMeter time;
-	fprintf(TIME, "検証時間\n" );
-	for (int dsc = 2; dsc <= 2; dsc++)//968
+	fprintf(kekka, "画像番号,閾値,ウィンドウサイズ,正しい船舶の面積,プログラムが検出した船舶数,正しい船舶数,窓の総面積,抽出面積の割合,検出率,誤検出率\n");
+	fclose(kekka);
+	fprintf(TIME, "画像番号,検測時間\n");
+	for (int dsc = 2; dsc <= 968; dsc++)//968
 	{
 		
-		for (int win = 20; win < 40; win += 3){//ウィンドウサイズ
-			for (int s = 12; s < 22; s += 3){//閾値
+		for (int win = 5; win < 50; win += 2){//ウィンドウサイズ
+			for (int s = 10; s < 50; s += 1){//閾値
 				
 				char result[500];
 				sprintf_s(result, "sikiiti/s%d_w%d_DSC00%03d.JPG",s,win, dsc);
@@ -293,7 +302,7 @@ int main(int argc, char ** argv){
 				sprintf_s(str, "shashin/DSC00%03d.jpg", dsc);
 				Mat img = imread(str);
 				if (img.empty()) continue;
-				resize(img, img, Size(640, 480));
+				//resize(img, img, Size(640, 480));
 				variance var(win, s);
 
 				list<Rect> rects;
@@ -304,15 +313,16 @@ int main(int argc, char ** argv){
 				var.detect(img, rects);
 				var.draw(img);
 				time.stop();//計測終了
-				var.kenshou(dsc,s,win);
+				var.kenshou(dsc,s,win, img);
 				double jikan = time.getTimeMilli()/1000;//sec
 				
-				fprintf(TIME,"%f\n",jikan);
+				fprintf(TIME,"%d,%f\n",dsc,jikan);
 				time.reset();
 				imwrite(result, img);
 				
 			}
 		}
 	}
+	fclose(TIME);
 	return 0;
 }
